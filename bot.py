@@ -4,19 +4,21 @@ from websockets.exceptions import ConnectionClosed
 import requests
 import logging
 import json
-from opcodes import opcodes
+from opcodes import *
 
+INTENTS = 513
 token = "MTE2NjA4MDgzNjI5OTM5MTAyNg.GSgp1R.LMeVHWJJFRvGCDIxq3I6RfCUIsRvgklgvmK91Q"
 gateway = requests.get(url="https://discord.com/api/gateway/bot", headers={"Authorization": f"Bot {token}"}).json()["url"]
+DEBUG = False
 
 async def heartbeat(websocket, **kwargs):
 	if kwargs.get("interval") != None:
 		while True:
-			logging.info('--- Heartbeat ---')
+			if DEBUG == True:
+				logging.info('--- Heartbeat ---')
 			await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": "null"}))
 			await asyncio.sleep(kwargs.get("interval") / 1000)
 	else:
-		logging.info('--- Heartbeat ---')
 		await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": "null"}))
 
 async def identify(websocket):
@@ -24,7 +26,7 @@ async def identify(websocket):
 		"op": opcodes.IDENTIFY, 
 		"d": {
 			"token": token, 
-			"intents": 513, 
+			"intents": INTENTS, 
 			"properties": {
 				"os": "linux", 
 				"browser": "PK-4 WorkerDroid", 
@@ -73,7 +75,7 @@ async def main():
 			try:
 				ack = await websocket.recv()
 				ack = json.loads(ack)
-				logging.info("Received 'Hello' from gateway, sending heartbeat..")
+				logging.info("Received 'Hello' from gateway, starting heartbeat-cycle..")
 				asyncio.create_task(
 					heartbeat(
 						websocket, interval=ack["d"]["heartbeat_interval"]
@@ -85,20 +87,25 @@ async def main():
 					if message["op"] == opcodes.DISPATCH:
 						ResumeConnection.LATEST_SEQ = message["s"]
 						messageHandler(websocket, message)
-					elif message["op"] == opcodes.HEARTBEAT:
-						logging.info(f"Recieved op: {message['op']}, sending heartbeat ASAP..")
-						await heartbeat(websocket)
-					elif message["op"] == opcodes.HEARTBEAT_ACK:
-						logging.info(f"Recieved op: {message['op']}, Heartbeat acknowledged..")
+					elif DEBUG == True:
+						if message["op"] == opcodes.HEARTBEAT:
+							logging.info(f"Recieved op: {message['op']}, sending heartbeat ASAP..")
+							await heartbeat(websocket)
+						if message["op"] == opcodes.HEARTBEAT_ACK:
+							logging.info(f"Recieved op: {message['op']}, Heartbeat acknowledged..")
 					elif message["op"] == opcodes.RECONNECT:
 						logging.warning("Received 'RECONNECT', attempting to resume..")
 						raise ConnectionClosed
-					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == True:
+					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == False:
 						logging.warning(f"INVALID_SESSION, {message}")
 						raise ConnectionClosed
-			except ConnectionClosed:
-				ResumeConnection(websocket).reconnect()
-				continue
+			except ConnectionClosed as e:
+				logging.error(e)
+				try:
+					ResumeConnection(websocket).reconnect()
+				except Exception as e:
+					break
+					
 
 if __name__=="__main__":
 	logging.basicConfig(
