@@ -6,7 +6,7 @@ import logging
 import json
 from opcodes import *
 
-INTENTS = 513
+INTENTS = 14023 #https://ziad87.net/intents/
 token = "MTE2NjA4MDgzNjI5OTM5MTAyNg.GSgp1R.LMeVHWJJFRvGCDIxq3I6RfCUIsRvgklgvmK91Q"
 gateway = requests.get(url="https://discord.com/api/gateway/bot", headers={"Authorization": f"Bot {token}"}).json()["url"]
 DEBUG = False
@@ -99,13 +99,13 @@ async def main():
 					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == False:
 						logging.warning(f"INVALID_SESSION, {message}")
 						raise ConnectionClosed
-			except ConnectionClosed as e:
-				logging.error(e)
+			except ConnectionClosed as cc:
 				try:
 					ResumeConnection(websocket).reconnect()
-				except Exception as e:
+				except:
+					logging.error("Failed to resume connection")
+					logging.error(cc)
 					break
-					
 
 if __name__=="__main__":
 	logging.basicConfig(
