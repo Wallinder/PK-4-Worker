@@ -7,8 +7,8 @@ import json
 from opcodes import *
 
 INTENTS = 14023 #https://ziad87.net/intents/
-token = ""
-gateway = requests.get(url="https://discord.com/api/gateway/bot", headers={"Authorization": f"Bot {token}"}).json()["url"]
+TOKEN = None
+GATEWAY = requests.get(url="https://discord.com/api/gateway/bot", headers={"Authorization": f"Bot {TOKEN}"}).json()["url"]
 DEBUG = False
 
 async def heartbeat(websocket, **kwargs):
@@ -25,12 +25,12 @@ async def identify(websocket):
 	identify = {
 		"op": opcodes.IDENTIFY, 
 		"d": {
-			"token": token, 
+			"token": TOKEN, 
 			"intents": INTENTS, 
 			"properties": {
 				"os": "linux", 
-				"browser": "PK-4 WorkerDroid", 
-				"device": "PK-4 WorkerDroid",
+				"browser": "PK-4 Worker", 
+				"device": "PK-4 Worker", 
 				}
 			}
 		}
@@ -50,7 +50,7 @@ class ResumeConnection:
 		resume = {
 			"op": 6,
 			"d": {
-			    "token": token,
+			    "token": TOKEN,
 			  	"session_id": SESSION,
 			  	"seq": LATEST_SEQ
 			}
@@ -70,8 +70,8 @@ class messageHandler:
 		print(message)
 
 async def main():
-	async with connect(gateway) as websocket:
-		async for websocket in connect(gateway):
+	async with connect(GATEWAY) as websocket:
+		async for websocket in connect(GATEWAY):
 			try:
 				ack = await websocket.recv()
 				ack = json.loads(ack)
@@ -95,11 +95,10 @@ async def main():
 							logging.info(f"Recieved op: {message['op']}, Heartbeat acknowledged..")
 					elif message["op"] == opcodes.RECONNECT:
 						logging.warning("Received 'RECONNECT', attempting to resume..")
-						raise ConnectionClosed
 					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == False:
 						logging.warning(f"INVALID_SESSION, {message}")
-						raise ConnectionClosed
-			except ConnectionClosed as cc:
+
+			except ConnectionClosed as cc: # recv(), send(), and similar methods raise the exception when the connection is closed.
 				try:
 					ResumeConnection(websocket).reconnect()
 				except:
