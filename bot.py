@@ -7,7 +7,7 @@ import json
 from opcodes import *
 
 INTENTS = 14023 #https://ziad87.net/intents/
-token = "MTE2NjA4MDgzNjI5OTM5MTAyNg.GSgp1R.LMeVHWJJFRvGCDIxq3I6RfCUIsRvgklgvmK91Q"
+token = ""
 gateway = requests.get(url="https://discord.com/api/gateway/bot", headers={"Authorization": f"Bot {token}"}).json()["url"]
 DEBUG = False
 
