@@ -6,9 +6,11 @@ import logging
 import json
 import sys
 
-from opcodes import *
+from constants import *
+from commands import *
 
 INTENTS = 14023 #https://ziad87.net/intents/
+DEBUG = False
 TOKEN = None
 
 getGateway = requests.get(
@@ -20,17 +22,22 @@ if getGateway.status_code == 401:
 	sys.exit()
 
 GATEWAY = getGateway.json()["url"]
-DEBUG = True
 
 async def heartbeat(websocket, **kwargs):
-	if kwargs.get("interval") != None:
-		while True:
-			if DEBUG == True:
-				logging.info('--- Heartbeat ---')
+	try:
+		if kwargs.get("interval") != None:
+			while True:
+				if DEBUG == True:
+					logging.info('--- Heartbeat ---')
+				await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": ResumeConnection.LATEST_SEQ}))
+				await asyncio.sleep(kwargs.get("interval") / 1000)
+		else:
 			await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": ResumeConnection.LATEST_SEQ}))
-			await asyncio.sleep(kwargs.get("interval") / 1000)
-	else:
-		await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": ResumeConnection.LATEST_SEQ}))
+	except ConnectionClosedOK as cco:
+		try:
+			ResumeConnection(websocket).reconnect()
+		except:
+			logging.error("ConnectionClosedOK:" + cco)
 
 async def identify(websocket):
 	identify = {
@@ -59,7 +66,7 @@ class ResumeConnection:
 	def reconnect(self):
 		logging.info("Resuming session..")
 		resume = {
-			"op": 6,
+			"op": opcodes.RESUME,
 			"d": {
 			    "token": TOKEN,
 			  	"session_id": SESSION,
@@ -69,16 +76,21 @@ class ResumeConnection:
 		self.websocket.send(json.dumps(resume))
 
 class messageHandler:
-	def __init__(self, websocket, message):
-		self.message = message
-		self.handle = self.handler(self.message)
+	def __init__(self, websocket, msg):
+		self.msg = msg
+		self.ready = self.ready()
+		self.command = self.filterCommands()
 
-	def handler(self, message):
-		if message["t"] == "READY":
+	def ready(self):
+		if self.msg["t"] == "READY":
 			logging.info("Received 'READY' from gateway, handshake completed")
-			ResumeConnection.SESSION_ID = message["d"]["session_id"]
-			ResumeConnection.GATEWAY_ID = message["d"]["resume_gateway_url"]
-		print(message)
+			ResumeConnection.SESSION_ID = self.msg["d"]["session_id"]
+			ResumeConnection.GATEWAY_ID = self.msg["d"]["resume_gateway_url"]
+			#for guild in msg["d"]["guilds"]:
+			#	print(guild["id"])
+	def filterCommands(self):
+		if self.msg["t"] == "MESSAGE_CREATE" and self.msg["d"]["content"].split(" ")[0] == "pk4ctl":
+			command(self.msg)
 
 async def main():
 	async with connect(GATEWAY) as websocket:
@@ -106,7 +118,7 @@ async def main():
 							logging.info(f"Recieved op: {message['op']}, Heartbeat acknowledged..")
 					elif message["op"] == opcodes.RECONNECT:
 						logging.warning("Received 'RECONNECT', attempting to resume..")
-						logging.warning(message)
+						ResumeConnection(websocket).reconnect()
 					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == False:
 						logging.warning(f"INVALID_SESSION, {message}")
 

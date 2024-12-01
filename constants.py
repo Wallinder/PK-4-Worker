@@ -11,3 +11,4 @@ class opcodes:
     HELLO                       = 10 #  Receive       Sent immediately after connecting, contains the heartbeat_interval to use.
     HEARTBEAT_ACK               = 11 #  Receive       Sent in response to receiving a heartbeat to acknowledge that it has been received.
     REQUEST_SOUNDBOARD_SOUNDS   = 31 #  Send          Request information about soundboard sounds in a set of guilds.
+
