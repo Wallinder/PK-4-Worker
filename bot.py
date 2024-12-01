@@ -11,6 +11,8 @@ from commands import *
 
 INTENTS = 14023 #https://ziad87.net/intents/
 DEBUG = False
+API = "https://discord.com/api/v10"
+
 TOKEN = None
 
 getGateway = requests.get(
@@ -41,7 +43,7 @@ async def heartbeat(websocket, **kwargs):
 
 async def identify(websocket):
 	identify = {
-		"op": opcodes.IDENTIFY, 
+		"op": opcodes.IDENTIFY,
 		"d": {
 			"token": TOKEN, 
 			"intents": INTENTS, 
@@ -52,7 +54,7 @@ async def identify(websocket):
 				}
 			}
 		}
-	logging.info("Sending 'identify' to gateway..")
+	logging.info("Sending 'IDENTIFY' to gateway..")
 	await websocket.send(json.dumps(identify))
 
 class ResumeConnection:
@@ -90,7 +92,7 @@ class messageHandler:
 			#	print(guild["id"])
 	def filterCommands(self):
 		if self.msg["t"] == "MESSAGE_CREATE" and self.msg["d"]["content"].split(" ")[0] == "pk4ctl":
-			command(self.msg)
+			Command(self.msg, API, TOKEN)
 
 async def main():
 	async with connect(GATEWAY) as websocket:
@@ -98,7 +100,7 @@ async def main():
 			try:
 				ack = await websocket.recv()
 				ack = json.loads(ack)
-				logging.info("Received 'Hello' from gateway, starting heartbeat-cycle..")
+				logging.info("Received 'HELLO' from gateway, starting heartbeat-cycle..")
 				asyncio.create_task(
 					heartbeat(
 						websocket, interval=ack["d"]["heartbeat_interval"]
