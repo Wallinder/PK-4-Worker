@@ -1,6 +1,4 @@
 import requests
-import asyncio
-import logging
 import json
 
 class Command:
