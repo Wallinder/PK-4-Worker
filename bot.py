@@ -4,22 +4,33 @@ from websockets.exceptions import ConnectionClosed
 import requests
 import logging
 import json
+import sys
+
 from opcodes import *
 
 INTENTS = 14023 #https://ziad87.net/intents/
 TOKEN = None
-GATEWAY = requests.get(url="https://discord.com/api/gateway/bot", headers={"Authorization": f"Bot {TOKEN}"}).json()["url"]
-DEBUG = False
+
+getGateway = requests.get(
+	url="https://discord.com/api/gateway/bot", 
+	headers={"Authorization": f"Bot {TOKEN}"}
+)
+if getGateway.status_code == 401:
+	logging.error("Missing token")
+	sys.exit()
+
+GATEWAY = getGateway.json()["url"]
+DEBUG = True
 
 async def heartbeat(websocket, **kwargs):
 	if kwargs.get("interval") != None:
 		while True:
 			if DEBUG == True:
 				logging.info('--- Heartbeat ---')
-			await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": "null"}))
+			await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": ResumeConnection.LATEST_SEQ}))
 			await asyncio.sleep(kwargs.get("interval") / 1000)
 	else:
-		await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": "null"}))
+		await websocket.send(json.dumps({"op": opcodes.HEARTBEAT, "d": ResumeConnection.LATEST_SEQ}))
 
 async def identify(websocket):
 	identify = {
@@ -38,7 +49,7 @@ async def identify(websocket):
 	await websocket.send(json.dumps(identify))
 
 class ResumeConnection:
-	LATEST_SEQ = None
+	LATEST_SEQ = "null"
 	SESSION_ID = None
 	GATEWAY_ID = None
 
@@ -87,7 +98,7 @@ async def main():
 					if message["op"] == opcodes.DISPATCH:
 						ResumeConnection.LATEST_SEQ = message["s"]
 						messageHandler(websocket, message)
-					elif DEBUG == True:
+					if DEBUG == True:
 						if message["op"] == opcodes.HEARTBEAT:
 							logging.info(f"Recieved op: {message['op']}, sending heartbeat ASAP..")
 							await heartbeat(websocket)
@@ -95,6 +106,7 @@ async def main():
 							logging.info(f"Recieved op: {message['op']}, Heartbeat acknowledged..")
 					elif message["op"] == opcodes.RECONNECT:
 						logging.warning("Received 'RECONNECT', attempting to resume..")
+						logging.warning(message)
 					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == False:
 						logging.warning(f"INVALID_SESSION, {message}")
 
@@ -102,9 +114,17 @@ async def main():
 				try:
 					ResumeConnection(websocket).reconnect()
 				except:
-					logging.error("Failed to resume connection")
-					logging.error(cc)
-					break
+					logging.error("ConnectionClosed:" + cc)
+			except ConnectionClosedOK as cco:
+				try:
+					ResumeConnection(websocket).reconnect()
+				except:
+					logging.error("ConnectionClosedOK" + cco)
+			except ConnectionClosedError as cce:
+				try:
+					ResumeConnection(websocket).reconnect()
+				except:
+					logging.error("ConnectionClosedError" + cce)
 
 if __name__=="__main__":
 	logging.basicConfig(
