@@ -21,6 +21,7 @@ TOKEN = os.getenv("TOKEN", None)
 
 if TOKEN == None:
 	logging.error("Unable to find token")
+	sys.exit()
 
 getGateway = requests.get(
 	url="https://discord.com/api/gateway/bot", 
