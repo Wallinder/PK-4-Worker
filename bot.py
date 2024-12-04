@@ -21,13 +21,14 @@ TOKEN = os.getenv("TOKEN", None)
 
 if TOKEN == None:
 	logging.error("Unable to find token")
+	sys.exit()
 
 getGateway = requests.get(
 	url="https://discord.com/api/gateway/bot", 
 	headers={"Authorization": f"Bot {TOKEN}"}
 )
 if getGateway.status_code == 401:
-	logging.error("Missing token")
+	logging.error("Missing or invalid token")
 	sys.exit()
 
 GATEWAY = getGateway.json()["url"]

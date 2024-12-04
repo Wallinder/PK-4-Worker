@@ -1,7 +1,7 @@
 import requests
-import asyncio
-import logging
 import json
+
+from arnebergli import *
 
 class Command:
 	def __init__(self, msg, api, token):
@@ -15,11 +15,15 @@ class Command:
 		self.guild = self.msg["d"]["guild_id"]
 		self.channel_id = self.msg["d"]["channel_id"]
 		self.user = self.msg["d"]["author"]["username"]
-		self.command = self.msg["d"]["content"].split(" ")
+		self.command = self.msg["d"]["content"].lower().split(" ")
 		try:
 			if self.command[1] == "get":
-				print(self.msg)
-
+				if self.command[2] == "arnebergli":
+					if self.command[3] == "ansattliste":
+						self.sendMessage(arnebergli().ansatt()[0])
+					elif self.command[3] == "ansatt":
+						self.sendMessage(arnebergli().ansatt()[1][self.command[4]])
+						
 			elif self.command[1] == "create":
 				pass
 
@@ -27,18 +31,18 @@ class Command:
 				pass
 
 		except IndexError:
-			send = requests.post(
-				self.api + f"/channels/{self.channel_id}/messages", 
-				headers=self.headers, 
-				data=json.dumps(
-						{
-						  "content": "```placeholder```",
-						  "tts": "false",
-						}
-					)
-				).json()
+			self.sendMessage("```placeholder```")
 
-	def _createVoiceChannel():
-		pass
-
+	def sendMessage(self, content):
+		send = requests.post(
+			self.api + f"/channels/{self.channel_id}/messages", 
+			headers=self.headers, 
+			data=json.dumps(
+					{
+					"content": f"{content}",
+					"tts": "false",
+					}
+				)
+			).json()
+			
 
