@@ -1,10 +1,12 @@
 import asyncio
 from websockets.asyncio.client import connect
 from websockets.exceptions import ConnectionClosed
+from dotenv import load_dotenv
 import requests
 import logging
 import json
 import sys
+import os
 
 from constants import *
 from commands import *
@@ -13,7 +15,12 @@ INTENTS = 14023 #https://ziad87.net/intents/
 DEBUG = False
 API = "https://discord.com/api/v10"
 
-TOKEN = None
+load_dotenv()
+
+TOKEN = os.getenv("TOKEN", None)
+
+if TOKEN == None:
+	logging.error("Unable to find token")
 
 getGateway = requests.get(
 	url="https://discord.com/api/gateway/bot", 
@@ -25,7 +32,7 @@ if getGateway.status_code == 401:
 
 GATEWAY = getGateway.json()["url"]
 
-async def heartbeat(websocket, **kwargs):
+async def heartbeat(websocket, **kwargs) -> None:
 	try:
 		if kwargs.get("interval") != None:
 			while True:
@@ -65,7 +72,7 @@ class ResumeConnection:
 	def __init__(self, websocket):
 		self.websocket = websocket
 
-	def reconnect(self):
+	def reconnect(self) -> None:
 		logging.info("Resuming session..")
 		resume = {
 			"op": opcodes.RESUME,
