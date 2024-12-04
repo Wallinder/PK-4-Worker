@@ -28,7 +28,7 @@ getGateway = requests.get(
 	headers={"Authorization": f"Bot {TOKEN}"}
 )
 if getGateway.status_code == 401:
-	logging.error("Missing token")
+	logging.error("Missing or invalid token")
 	sys.exit()
 
 GATEWAY = getGateway.json()["url"]
