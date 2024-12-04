@@ -7,6 +7,8 @@ import logging
 import json
 import sys
 import os
+import signal
+import aiohttp
 
 from constants import *
 from commands import *
@@ -23,15 +25,16 @@ if TOKEN == None:
 	logging.error("Unable to find token")
 	sys.exit()
 
-getGateway = requests.get(
-	url="https://discord.com/api/gateway/bot", 
-	headers={"Authorization": f"Bot {TOKEN}"}
-)
-if getGateway.status_code == 401:
-	logging.error("Missing or invalid token")
-	sys.exit()
+async def fetch_gateway():
+    async with aiohttp.ClientSession() as session:
+        async with session.get(API + "/gateway/bot", headers={"Authorization": f"Bot {TOKEN}"}) as response:
+            if response.status == 401:
+                logging.error("Invalid or missing token.")
+                sys.exit(1)
+            return (await response.json())["url"]
 
-GATEWAY = getGateway.json()["url"]
+GATEWAY = asyncio.run(fetch_gateway())
+
 
 async def heartbeat(websocket, **kwargs) -> None:
 	try:
@@ -73,17 +76,18 @@ class ResumeConnection:
 	def __init__(self, websocket):
 		self.websocket = websocket
 
-	def reconnect(self) -> None:
-		logging.info("Resuming session..")
-		resume = {
-			"op": opcodes.RESUME,
-			"d": {
-			    "token": TOKEN,
-			  	"session_id": SESSION,
-			  	"seq": LATEST_SEQ
-			}
-		}
-		self.websocket.send(json.dumps(resume))
+async def reconnect(self):
+    logging.info("Resuming session...")
+    resume = {
+        "op": opcodes.RESUME,
+        "d": {
+            "token": TOKEN,
+            "session_id": ResumeConnection.SESSION_ID,
+            "seq": ResumeConnection.LATEST_SEQ
+        }
+    }
+    await self.websocket.send(json.dumps(resume))
+
 
 class messageHandler:
 	def __init__(self, websocket, msg):
@@ -104,53 +108,39 @@ class messageHandler:
 
 async def main():
 	async with connect(GATEWAY) as websocket:
-		async for websocket in connect(GATEWAY):
-			try:
-				ack = await websocket.recv()
-				ack = json.loads(ack)
-				logging.info("Received 'HELLO' from gateway, starting heartbeat-cycle..")
-				asyncio.create_task(
-					heartbeat(
-						websocket, interval=ack["d"]["heartbeat_interval"]
-						)
-					)
-				await identify(websocket)
-				async for message in websocket:
-					message = json.loads(message)
-					if message["op"] == opcodes.DISPATCH:
-						ResumeConnection.LATEST_SEQ = message["s"]
-						messageHandler(websocket, message)
-					if DEBUG == True:
-						if message["op"] == opcodes.HEARTBEAT:
-							logging.info(f"Recieved op: {message['op']}, sending heartbeat ASAP..")
-							await heartbeat(websocket)
-						if message["op"] == opcodes.HEARTBEAT_ACK:
-							logging.info(f"Recieved op: {message['op']}, Heartbeat acknowledged..")
-					elif message["op"] == opcodes.RECONNECT:
-						logging.warning("Received 'RECONNECT', attempting to resume..")
-						ResumeConnection(websocket).reconnect()
-					elif message["op"] == opcodes.INVALID_SESSION and message["d"] == False:
-						logging.warning(f"INVALID_SESSION, {message}")
+		async with connect(GATEWAY) as websocket:
+				try:
+        			ack = await websocket.recv()
+        			ack = json.loads(ack)
+        			logging.info("Received 'HELLO' from gateway, starting heartbeat-cycle..")
+        			asyncio.create_task(heartbeat(websocket, interval=ack["d"]["heartbeat_interval"]))
+        			await identify(websocket)
+        			async for message in websocket:
+            			# Process messages
+    				except ConnectionClosed as cc:
+        			# Handle connection errors
 
 			except ConnectionClosed as cc: # recv(), send(), and similar methods raise the exception when the connection is closed.
-				try:
-					ResumeConnection(websocket).reconnect()
-				except:
-					logging.error("ConnectionClosed:" + cc)
+    				logging.error(f"Connection closed unexpectedly: {cc}")
+			
 			except ConnectionClosedOK as cco:
 				try:
 					ResumeConnection(websocket).reconnect()
 				except:
 					logging.error("ConnectionClosedOK" + cco)
-			except ConnectionClosedError as cce:
-				try:
-					ResumeConnection(websocket).reconnect()
-				except:
-					logging.error("ConnectionClosedError" + cce)
+					
+			except Exception as e:
+				logging.error(f"Unexpected error: {e}")
 
 if __name__=="__main__":
-	logging.basicConfig(
+	logging.basicConfig(level=logging.DEBUG if DEBUG else logging.INFO)
 		level=logging.INFO, format='[%(asctime)s] [%(levelname)s] %(message)s',
 		datefmt='%Y-%m-%d %H:%M:%S'
 	)
 	asyncio.run(main())
+
+def shutdown():
+    logging.info("Shutting down bot...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT, lambda *_: shutdown())
