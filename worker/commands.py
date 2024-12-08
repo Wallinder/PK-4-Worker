@@ -1,8 +1,6 @@
 import requests
 import json
 
-from arnebergli import *
-
 class Command:
 	def __init__(self, msg, api, token):
 		self.msg = msg

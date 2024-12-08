@@ -8,8 +8,9 @@ import json
 import sys
 import os
 
-from constants import *
-from commands import *
+from worker.constants import *
+from worker.commands import *
+from worker.arnebergli import *
 
 INTENTS = 14023 #https://ziad87.net/intents/
 DEBUG = False
